@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Investment Calculator</title>
+  <style>
+    :root {
+      --bg: #0d0f1a;
+      --card: #151929;
+      --text: #e8eaf6;
+      --muted: #8892b0;
+      --border: #1e2a45;
+      --accent: #00e5ff;
+      --accent2: #ff6b6b;
+      --gold: #ffd166;
+      --green: #06d6a0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 14px;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    h1 {
+      margin: 0 0 14px 0;
+      font-size: 24px;
+      color: var(--accent);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 13px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 16px;
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    button {
+      padding: 14px 12px;
+      border: 0;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .primary { background: var(--accent); color: #001217; }
+    .secondary { background: #2a3147; color: var(--text); }
+    .results {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .result {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .result:last-child { border-bottom: 0; }
+    .k { color: var(--muted); }
+    .v { font-weight: 700; text-align: right; }
+    .green { color: var(--green); }
+    .gold { color: var(--gold); }
+    .purple { color: #c77dff; }
+    .red { color: var(--accent2); }
+    .chartBox {
+      width: 100%;
+      overflow-x: auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px;
+    }
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      min-height: 300px;
+    }
+    .caption {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+    }
+    .error {
+      color: #ff8d8d;
+      margin-top: 8px;
+      min-height: 20px;
+    }
+    @media (min-width: 760px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+      .results { grid-template-columns: 1fr 1fr; column-gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Investment Calculator</h1>
+      <div class="grid">
+        <div>
+          <label for="balance">Current Balance ($)</label>
+          <input id="balance" type="number" inputmode="decimal" value="10000" />
+        </div>
+        <div>
+          <label for="monthly">Monthly Contribution ($)</label>
+          <input id="monthly" type="number" inputmode="decimal" value="500" />
+        </div>
+        <div>
+          <label for="years">Years to Invest</label>
+          <input id="years" type="number" inputmode="numeric" value="30" />
+        </div>
+        <div>
+          <label for="rate">Annual Return (%)</label>
+          <input id="rate" type="number" inputmode="decimal" value="8" />
+        </div>
+        <div>
+          <label for="age">Current Age</label>
+          <input id="age" type="number" inputmode="numeric" value="30" />
+        </div>
+        <div>
+          <label for="year">Current Year</label>
+          <input id="year" type="number" inputmode="numeric" value="2026" />
+        </div>
+      </div>
+      <div class="buttons">
+        <button id="calcBtn" class="primary" type="button">Calculate</button>
+        <button id="resetBtn" class="secondary" type="button">Reset</button>
+      </div>
+      <div id="error" class="error"></div>
+    </div>
+
+    <div class="card">
+      <div class="results" id="results"></div>
+    </div>
+
+    <div class="card">
+      <div class="chartBox">
+        <svg id="chart" viewBox="0 0 760 420" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div class="caption">Blue = invested portfolio, red = savings only, gold = $1,000,000 line.</div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const defaults = {
+        balance: 10000,
+        monthly: 500,
+        years: 30,
+        rate: 8,
+        age: 30,
+        year: 2026
+      };
+
+      const ids = ["balance", "monthly", "years", "rate", "age", "year"];
+      const el = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
+      const errorEl = document.getElementById('error');
+      const resultsEl = document.getElementById('results');
+      const chartEl = document.getElementById('chart');
+      const calcBtn = document.getElementById('calcBtn');
+      const resetBtn = document.getElementById('resetBtn');
+
+      function num(value) {
+        return Number(String(value).replace(/,/g, '').trim());
+      }
+
+      function money(v) {
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          maximumFractionDigits: 2
+        }).format(v);
+      }
+
+      function whole(v) {
+        return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(v);
+      }
+
+      function futureValue(pv, pmt, annualRate, years) {
+        const r = annualRate / 100 / 12;
+        const months = years * 12;
+        if (r === 0) return pv + pmt * months;
+        return pv * Math.pow(1 + r, months) + pmt * ((Math.pow(1 + r, months) - 1) / r);
+      }
+
+      function savingsValue(pv, pmt, years) {
+        return pv + pmt * years * 12;
+      }
+
+      function monthlyNeededForMillion(pv, annualRate, years) {
+        const target = 1000000;
+        const r = annualRate / 100 / 12;
+        const months = years * 12;
+        if (months <= 0) return Infinity;
+        if (r === 0) return Math.max(0, (target - pv) / months);
+        const fvPv = pv * Math.pow(1 + r, months);
+        if (fvPv >= target) return 0;
+        const numerator = (target - fvPv) * r;
+        const denominator = Math.pow(1 + r, months) - 1;
+        return denominator === 0 ? Infinity : numerator / denominator;
+      }
+
+      function yearsToMillion(pv, pmt, annualRate) {
+        const target = 1000000;
+        const r = annualRate / 100 / 12;
+        if (pv >= target) return 0;
+        if (r === 0) {
+          if (pmt <= 0) return null;
+          return Math.ceil((target - pv) / pmt / 12);
+        }
+        let lo = 0, hi = 1200;
+        if (futureValue(pv, pmt, annualRate, hi / 12) < target) return null;
+        while (lo < hi) {
+          const mid = Math.floor((lo + hi) / 2);
+          if (futureValue(pv, pmt, annualRate, mid / 12) >= target) hi = mid;
+          else lo = mid + 1;
+        }
+        return Math.ceil(lo / 12);
+      }
+
+      function yearlySeries(pv, pmt, annualRate, years) {
+        const invested = [];
+        const saved = [];
+        for (let y = 1; y <= years; y++) {
+          invested.push(futureValue(pv, pmt, annualRate, y));
+          saved.push(savingsValue(pv, pmt, y));
+        }
+        return { invested, saved };
+      }
+
+      function renderResults(data) {
+        resultsEl.innerHTML = `
+          <div>
+            <div class="result"><div class="k">Invested Value</div><div class="v green">${money(data.finalInvested)}</div></div>
+            <div class="result"><div class="k">Savings Only</div><div class="v red">${money(data.finalSaved)}</div></div>
+            <div class="result"><div class="k">Total Contributed</div><div class="v">${money(data.totalContrib)}</div></div>
+            <div class="result"><div class="k">Interest Earned</div><div class="v gold">${money(data.interestEarned)}</div></div>
+          </div>
+          <div>
+            <div class="result"><div class="k">End Year / Age</div><div class="v">${data.endYear} / ${data.endAge}</div></div>
+            <div class="result"><div class="k">Monthly Needed for $1M</div><div class="v gold">${data.pmtNeeded <= 0 ? 'Already on track' : money(data.pmtNeeded)}</div></div>
+            <div class="result"><div class="k">Target Year / Age</div><div class="v">${data.targetYear} / ${data.targetAge}</div></div>
+            <div class="result"><div class="k">Millionaire Year at Current Rate</div><div class="v purple">${data.yrsNeeded === null ? 'Never' : (data.currentMilYear + ' (' + data.yrsNeeded + ' yrs)')}</div></div>
+          </div>
+        `;
+      }
+
+      function polyline(points, color, dashed) {
+        const pts = points.map(p => `${p[0]},${p[1]}`).join(' ');
+        return `<polyline fill="none" stroke="${color}" stroke-width="3" ${dashed ? 'stroke-dasharray="8 7"' : ''} points="${pts}" />`;
+      }
+
+      function line(x1, y1, x2, y2, color, dashed, width) {
+        return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${width || 1}" ${dashed ? 'stroke-dasharray="5 5"' : ''} />`;
+      }
+
+      function text(x, y, value, color, anchor, size) {
+        return `<text x="${x}" y="${y}" fill="${color}" font-size="${size || 12}" text-anchor="${anchor || 'start'}" font-family="Arial, sans-serif">${value}</text>`;
+      }
+
+      function renderChart(series, startYear) {
+        const width = 760, height = 420;
+        const m = { top: 20, right: 20, bottom: 70, left: 76 };
+        const pw = width - m.left - m.right;
+        const ph = height - m.top - m.bottom;
+        const years = series.invested.length;
+        const vals = [...series.invested, ...series.saved, 1000000];
+        const maxValRaw = Math.max(...vals, 1);
+        const maxVal = maxValRaw * 1.1;
+        const xPos = i => m.left + (years === 1 ? pw / 2 : (i * pw / (years - 1)));
+        const yPos = v => m.top + ph - (v / maxVal) * ph;
+
+        let svg = '';
+        svg += `<rect x="0" y="0" width="${width}" height="${height}" fill="#0d0f1a" rx="12" />`;
+
+        const yTicks = 5;
+        for (let i = 0; i <= yTicks; i++) {
+          const v = maxVal * i / yTicks;
+          const y = yPos(v);
+          svg += line(m.left, y, width - m.right, y, '#1e2a45', true, 1);
+          svg += text(m.left - 8, y + 4, '$' + whole(v), '#8892b0', 'end', 11);
+        }
+
+        svg += line(m.left, m.top, m.left, m.top + ph, '#1e2a45', false, 1.5);
+        svg += line(m.left, m.top + ph, width - m.right, m.top + ph, '#1e2a45', false, 1.5);
+
+        const invPts = series.invested.map((v, i) => [xPos(i), yPos(v)]);
+        const savPts = series.saved.map((v, i) => [xPos(i), yPos(v)]);
+        svg += polyline(invPts, '#00e5ff', false);
+        svg += polyline(savPts, '#ff6b6b', true);
+
+        const millionY = yPos(1000000);
+        if (millionY >= m.top && millionY <= m.top + ph) {
+          svg += line(m.left, millionY, width - m.right, millionY, '#ffd166', true, 2);
+          svg += text(width - m.right, millionY - 6, '$1,000,000', '#ffd166', 'end', 12);
+        }
+
+        const tickCount = Math.min(6, years);
+        for (let i = 0; i < tickCount; i++) {
+          const idx = tickCount === 1 ? 0 : Math.round(i * (years - 1) / (tickCount - 1));
+          const x = xPos(idx);
+          const yr = startYear + idx + 1;
+          svg += line(x, m.top + ph, x, m.top + ph + 6, '#1e2a45', false, 1);
+          svg += text(x, m.top + ph + 22, String(yr), '#8892b0', 'middle', 11);
+        }
+
+        svg += text(width / 2, height - 18, 'Year', '#8892b0', 'middle', 12);
+        svg += text(m.left, 16, 'Portfolio Growth', '#e8eaf6', 'start', 14);
+
+        svg += `<circle cx="${m.left + 10}" cy="${height - 44}" r="4" fill="#00e5ff"></circle>`;
+        svg += text(m.left + 22, height - 40, 'Invested', '#e8eaf6', 'start', 12);
+        svg += `<circle cx="${m.left + 120}" cy="${height - 44}" r="4" fill="#ff6b6b"></circle>`;
+        svg += text(m.left + 132, height - 40, 'Savings only', '#e8eaf6', 'start', 12);
+
+        chartEl.innerHTML = svg;
+      }
+
+      function getInputs() {
+        return {
+          balance: num(el.balance.value),
+          monthly: num(el.monthly.value),
+          years: Math.floor(num(el.years.value)),
+          rate: num(el.rate.value),
+          age: Math.floor(num(el.age.value)),
+          year: Math.floor(num(el.year.value))
+        };
+      }
+
+      function validate(v) {
+        if (Object.values(v).some(n => Number.isNaN(n))) return 'Please enter valid numbers.';
+        if (v.years <= 0) return 'Years must be greater than 0.';
+        if (v.balance < 0 || v.monthly < 0 || v.rate < 0 || v.age < 0 || v.year < 0) return 'Values cannot be negative.';
+        return '';
+      }
+
+      function calculate() {
+        const v = getInputs();
+        const err = validate(v);
+        errorEl.textContent = err;
+        if (err) return;
+
+        const finalInvested = futureValue(v.balance, v.monthly, v.rate, v.years);
+        const finalSaved = savingsValue(v.balance, v.monthly, v.years);
+        const totalContrib = v.balance + v.monthly * v.years * 12;
+        const interestEarned = finalInvested - totalContrib;
+        const pmtNeeded = monthlyNeededForMillion(v.balance, v.rate, v.years);
+        const yrsNeeded = yearsToMillion(v.balance, v.monthly, v.rate);
+        const endAge = v.age + v.years;
+        const endYear = v.year + v.years;
+        const targetYear = endYear;
+        const targetAge = endAge;
+        const currentMilYear = yrsNeeded === null ? null : (v.year + yrsNeeded);
+        const series = yearlySeries(v.balance, v.monthly, v.rate, v.years);
+
+        renderResults({ finalInvested, finalSaved, totalContrib, interestEarned, pmtNeeded, yrsNeeded, endAge, endYear, targetYear, targetAge, currentMilYear });
+        renderChart(series, v.year);
+      }
+
+      function reset() {
+        ids.forEach(id => { el[id].value = defaults[id]; });
+        errorEl.textContent = '';
+        calculate();
+      }
+
+      calcBtn.addEventListener('click', calculate);
+      resetBtn.addEventListener('click', reset);
+
+      ids.forEach(id => {
+        el[id].addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') calculate();
+        });
+      });
+
+      calculate();
+    })();
+  </script>
+</body>
+</html>
